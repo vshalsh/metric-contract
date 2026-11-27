@@ -249,10 +249,70 @@ def display_path(path: Path) -> str:
         return path.name
 
 
+class NotAContractError(ValueError):
+    """The path is clearly not a YAML contract (e.g. a binary or SQLite file)."""
+
+
+class DuplicateKeyError(yaml.constructor.ConstructorError):
+    def __init__(self, key: Any, first: yaml.Mark, dup: yaml.Mark) -> None:
+        self.key = key
+        self.first_line = first.line + 1
+        self.dup_line = dup.line + 1
+        super().__init__(
+            None, None, f"duplicate key '{key}' on line {self.dup_line} (first defined on line {self.first_line})"
+        )
+
+
+class UniqueKeyLoader(yaml.SafeLoader):
+    """SafeLoader that rejects duplicate mapping keys at any nesting level.
+
+    Plain PyYAML keeps the last value silently, which can drop a guard such as
+    a second ``between:`` or swap a metric's ``sql:`` without any warning.
+    Merge keys (``<<: *anchor``) keep their normal YAML override semantics.
+    """
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict:
+        if isinstance(node, yaml.MappingNode):
+            seen: dict[Any, yaml.Mark] = {}
+            for key_node, _ in node.value:
+                if key_node.tag == "tag:yaml.org,2002:merge":
+                    continue
+                key = self.construct_object(key_node, deep=True)
+                try:
+                    hash(key)
+                except TypeError:
+                    continue  # unhashable keys are reported by the base constructor
+                if key in seen:
+                    raise DuplicateKeyError(key, seen[key], key_node.start_mark)
+                seen[key] = key_node.start_mark
+        return super().construct_mapping(node, deep=deep)
+
+
+def parse_yaml(text: str) -> Any:
+    return yaml.load(text, Loader=UniqueKeyLoader)  # noqa: S506 - SafeLoader subclass
+
+
+_SQLITE_MAGIC = b"SQLite format 3\x00"
+
+
+def _sniff_binary(path: Path, data: bytes) -> None:
+    if data.startswith(_SQLITE_MAGIC):
+        raise NotAContractError(f"not a contract file: looks like a SQLite database? {path}")
+    if b"\x00" in data[:8192]:
+        raise NotAContractError(f"not a contract file: binary content in {path}")
+
+
 def load_file(path: Path) -> tuple[list[Metric], list[SchemaError]]:
     source = display_path(path)
     try:
-        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data = path.read_bytes()
+    except OSError as exc:
+        return [], [SchemaError(source, "<file>", None, f"cannot read file: {exc}")]
+    _sniff_binary(path, data)
+    try:
+        doc = parse_yaml(data.decode("utf-8"))
+    except DuplicateKeyError as exc:
+        return [], [SchemaError(source, "<file>", str(exc.key), exc.problem)]
     except yaml.YAMLError as exc:
         return [], [SchemaError(source, "<file>", None, "invalid YAML: " + " ".join(str(exc).split()))]
     except (OSError, UnicodeDecodeError) as exc:

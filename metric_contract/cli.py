@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, dax, docs
-from .contract import ContractPack, load_pack
+from .contract import ContractPack, NotAContractError, load_pack
 from .engine import PASS, InvalidDatabaseError, format_value, validate
 from .style import Style, color_enabled
 
@@ -18,7 +18,7 @@ EXIT_OK, EXIT_FAIL, EXIT_USAGE = 0, 1, 2
 def _load(paths: list[str]) -> ContractPack | None:
     try:
         return load_pack(paths)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, NotAContractError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return None
 
@@ -119,7 +119,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        print("interrupted", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

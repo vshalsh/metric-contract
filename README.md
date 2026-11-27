@@ -74,7 +74,7 @@ metrics:
 | `tests.non_negative` | no | bool | Fail if the value is negative (or not a number). |
 | `tests.between` | no | `[lo, hi]` numbers | Fail if the value is outside the inclusive range. `lo` must be <= `hi`. |
 
-Unknown fields and unknown tests are errors, so a typo (`owners:`, `non_negitive:`) is caught rather than silently ignored.
+Unknown fields and unknown tests are errors, so a typo (`owners:`, `non_negitive:`) is caught rather than silently ignored. Duplicate keys at any level (for example a second `between:` or `sql:` on the same metric) are also errors, naming the file, the key and both line numbers: plain YAML loaders silently keep the last value, which could drop a guard or swap a metric's SQL unnoticed.
 
 Each metric executes as:
 
@@ -121,7 +121,7 @@ PASS  enterprise_customer_count  value=17  [examples/contracts/retail.yml]
 PASS  10 metrics: 10 passed, 0 failed
 ```
 
-Text output rounds floats to 6 decimal places for readability; `--format json` carries the full value.
+Text output shows floats with at most 6 decimal places (trailing zeros dropped); values smaller than 1e-6 in magnitude are shown in scientific notation instead (e.g. `1.234e-07`) so they never print as `0`. `--format json` always carries the full value.
 
 ### `mc validate`: broken pack
 
