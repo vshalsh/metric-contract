@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+
+# Generated sample data and outputs (build on demand: python examples/build_sample_db.py)
+*.sqlite
+*.sqlite-journal
+*.db
+/DICTIONARY.md
+/measures.dax
+examples/out/
+
+# Local env / secrets
+.env
+.env.*

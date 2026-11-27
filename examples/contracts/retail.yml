@@ -1,0 +1,156 @@
+# Executive retail KPIs for the sample database built by examples/build_sample_db.py.
+# Every metric here should validate green:
+#   mc validate examples/contracts/retail.yml --db examples/retail.sqlite
+metrics:
+  - name: total_revenue
+    label: Total Revenue
+    owner: Finance - Revenue Reporting
+    description: >-
+      Net sales value of all orders that were not cancelled, after line
+      discounts. Returned orders are included (returns are tracked by
+      return_rate, not netted here).
+    table: orders
+    sql: SUM(revenue)
+    grain: [order_date, order_month, customer_id]
+    dimensions: [region, channel, category]
+    filters:
+      - status <> 'cancelled'
+    tests:
+      not_null: true
+      non_negative: true
+      between: [10000, 1000000]
+
+  - name: order_count
+    label: Order Count
+    owner: Sales Operations
+    description: Number of orders placed that were not cancelled.
+    table: orders
+    sql: COUNT(*)
+    grain: [order_date, order_month, customer_id]
+    dimensions: [region, channel, category]
+    filters:
+      - status <> 'cancelled'
+    tests:
+      not_null: true
+      non_negative: true
+      between: [1, 100000]
+
+  - name: aov
+    label: Average Order Value
+    owner: Finance - Revenue Reporting
+    description: Total revenue divided by order count, non-cancelled orders only.
+    table: orders
+    sql: SUM(revenue) / COUNT(*)
+    grain: [order_date, order_month]
+    dimensions: [region, channel, category]
+    filters:
+      - status <> 'cancelled'
+    tests:
+      not_null: true
+      non_negative: true
+      between: [20, 1000]
+
+  - name: active_customers
+    label: Active Customers
+    owner: Customer Analytics
+    description: Distinct customers with at least one completed order.
+    table: orders
+    sql: COUNT(DISTINCT customer_id)
+    grain: [order_month]
+    dimensions: [region, channel]
+    filters:
+      - status = 'completed'
+    tests:
+      not_null: true
+      non_negative: true
+      between: [1, 100000]
+
+  - name: return_rate
+    label: Return Rate
+    owner: Operations - Returns
+    description: >-
+      Share of non-cancelled orders that were returned. 0.08 means 8% of
+      orders came back.
+    table: orders
+    sql: AVG(is_returned)
+    grain: [order_date, order_month]
+    dimensions: [region, channel, category]
+    filters:
+      - status <> 'cancelled'
+    tests:
+      not_null: true
+      between: [0, 0.2]
+
+  - name: gross_margin_pct
+    label: Gross Margin %
+    owner: Finance - FP&A
+    description: >-
+      (Revenue - cost of goods) / revenue on completed orders, as a fraction
+      (0.55 = 55%).
+    table: orders
+    sql: (SUM(revenue) - SUM(cost)) / SUM(revenue)
+    grain: [order_date, order_month]
+    dimensions: [region, channel, category]
+    filters:
+      - status = 'completed'
+    tests:
+      not_null: true
+      between: [0, 1]
+
+  - name: revenue_per_customer
+    label: Revenue per Customer
+    owner: Customer Analytics
+    description: Non-cancelled revenue divided by the number of distinct purchasing customers.
+    table: orders
+    sql: SUM(revenue) / COUNT(DISTINCT customer_id)
+    grain: [order_month]
+    dimensions: [region, channel]
+    filters:
+      - status <> 'cancelled'
+    tests:
+      not_null: true
+      non_negative: true
+      between: [50, 10000]
+
+  - name: repeat_purchase_rate
+    label: Repeat Purchase Rate
+    owner: Customer Analytics
+    description: >-
+      Share of purchasing customers with two or more non-cancelled orders.
+    table: customer_order_stats
+    sql: 1.0 * SUM(CASE WHEN order_count >= 2 THEN 1 ELSE 0 END) / COUNT(*)
+    grain: [customer_id]
+    dimensions: [region, segment]
+    filters:
+      - order_count >= 1
+    tests:
+      not_null: true
+      between: [0, 1]
+
+  - name: units_sold
+    label: Units Sold
+    owner: Merchandising
+    description: Total item quantity on completed and returned orders (cancelled excluded).
+    table: orders
+    sql: SUM(quantity)
+    grain: [order_date, order_month]
+    dimensions: [region, channel, category]
+    filters:
+      - status IN ('completed', 'returned')
+    tests:
+      not_null: true
+      non_negative: true
+
+  - name: enterprise_customer_count
+    label: Enterprise Customers
+    owner: Sales Operations
+    description: Number of customer accounts in the Enterprise segment.
+    table: customers
+    sql: COUNT(*)
+    grain: [signup_date]
+    dimensions: [region]
+    filters:
+      - segment = 'Enterprise'
+    tests:
+      not_null: true
+      non_negative: true

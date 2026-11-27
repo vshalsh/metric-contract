@@ -1,0 +1,70 @@
+# Deliberately broken contracts. Every metric here must FAIL validation with a
+# clear reason; the test suite relies on that.
+#   mc validate examples/contracts/broken.yml --db examples/retail.sqlite
+metrics:
+  # Schema error: required field 'owner' is missing.
+  - name: missing_owner
+    label: Missing Owner
+    description: Revenue with no accountable owner.
+    table: orders
+    sql: SUM(revenue)
+
+  # Column error: grain column does not exist in the table.
+  - name: bad_grain_column
+    label: Bad Grain Column
+    owner: Data Engineering
+    description: Declares a weekly grain the orders table does not have.
+    table: orders
+    sql: SUM(revenue)
+    grain: [order_week]
+    dimensions: [region]
+
+  # Execution error: the SQL references a column that does not exist.
+  - name: bad_sql_column
+    label: Bad SQL Column
+    owner: Data Engineering
+    description: Uses a renamed column (net_revenue) that no longer exists.
+    table: orders
+    sql: SUM(net_revenue)
+
+  # Test failure: non_negative on a value that is negative (cost minus revenue).
+  - name: negative_margin
+    label: Negative Margin
+    owner: Finance - FP&A
+    description: Cost minus revenue; should be negative, so non_negative fails.
+    table: orders
+    sql: SUM(cost) - SUM(revenue)
+    tests:
+      non_negative: true
+
+  # Test failure: between bounds that the real return rate is outside of.
+  - name: return_rate_out_of_bounds
+    label: Return Rate (tight bound)
+    owner: Operations - Returns
+    description: Real return rate is about 8%; the bound only allows up to 1%.
+    table: orders
+    sql: AVG(is_returned)
+    filters:
+      - status <> 'cancelled'
+    tests:
+      between: [0, 0.01]
+
+  # Test failure: not_null on an aggregate over zero rows (NULL).
+  - name: null_revenue
+    label: Null Revenue
+    owner: Finance - Revenue Reporting
+    description: Filter matches no rows, so MAX() returns NULL.
+    table: orders
+    sql: MAX(revenue)
+    filters:
+      - status = 'no_such_status'
+    tests:
+      not_null: true
+
+  # Table error: table does not exist.
+  - name: missing_table
+    label: Missing Table
+    owner: Data Engineering
+    description: Points at a table that was never created.
+    table: refunds
+    sql: SUM(amount)
