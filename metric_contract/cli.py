@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import __version__, dax, docs
 from .contract import ContractPack, load_pack
-from .engine import PASS, format_value, validate
+from .engine import PASS, InvalidDatabaseError, format_value, validate
 from .style import Style, color_enabled
 
 EXIT_OK, EXIT_FAIL, EXIT_USAGE = 0, 1, 2
@@ -29,7 +29,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
         return EXIT_USAGE
     try:
         results = validate(pack, args.db)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, InvalidDatabaseError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_USAGE
 
@@ -40,8 +40,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
             "summary": {"total": len(results), "passed": len(results) - failed, "failed": failed},
             "results": [r.provenance() for r in results],
         }
+        if not results:
+            payload["error"] = "no metrics found"
         print(json.dumps(payload, indent=2, sort_keys=True))
-        return EXIT_FAIL if failed else EXIT_OK
+        return EXIT_FAIL if failed or not results else EXIT_OK
 
     st = Style(color_enabled(sys.stdout, args.no_color))
     if not results:

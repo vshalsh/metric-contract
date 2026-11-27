@@ -48,11 +48,22 @@ def build_sql(metric: Metric) -> str:
     return sql
 
 
+class InvalidDatabaseError(Exception):
+    """The --db file exists but is not a readable SQLite database."""
+
+
 def connect_readonly(db_path: str | Path) -> sqlite3.Connection:
     path = Path(db_path)
     if not path.is_file():
         raise FileNotFoundError(f"database not found: {path}")
-    return sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        # sqlite3 connects lazily; touch the schema so a non-SQLite file fails here.
+        conn.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchall()
+    except sqlite3.DatabaseError as exc:
+        conn.close()
+        raise InvalidDatabaseError(f"not a readable SQLite database: {path} ({exc})") from exc
+    return conn
 
 
 # Only reads are permitted while a metric executes (defence in depth on top of

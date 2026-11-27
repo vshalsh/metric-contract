@@ -162,7 +162,6 @@ def test_empty_contracts_dir(tmp_path, retail_db, capsys):
     capsys.readouterr()
 
 
-@pytest.mark.xfail(strict=True, reason="DEFECT L-002-D1: empty pack exits 0 with --format json but 1 in text mode (CI false-green)")
 def test_empty_contracts_dir_json_exit_nonzero(tmp_path, retail_db, capsys):
     d = tmp_path / "empty"
     d.mkdir()
@@ -205,8 +204,6 @@ def test_db_path_is_a_directory(tmp_path, capsys):
     assert main(["validate", str(GOOD), "--db", str(tmp_path)]) == 2
 
 
-@pytest.mark.xfail(strict=True, raises=sqlite3.DatabaseError,
-                   reason="DEFECT L-002-D2: non-SQLite --db file raises an uncaught traceback instead of a clean error")
 def test_db_not_a_sqlite_file(tmp_path, capsys):
     p = tmp_path / "x.sqlite"
     p.write_text("this is not a database" * 50)
