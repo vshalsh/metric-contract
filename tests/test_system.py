@@ -184,8 +184,11 @@ def test_yaml_not_a_mapping_or_malformed(tmp_path, retail_db, text, capsys):
 def test_binary_garbage_contract_does_not_crash(tmp_path, retail_db, capsys):
     p = tmp_path / "bin.yml"
     p.write_bytes(b"\xff\xfe\x00\x01garbage")
-    rc, payload = run_json(p, retail_db, capsys)
-    assert rc == 1
+    # L-004: obvious binary (null bytes) is a clean usage error, exit 2, no traceback.
+    rc = main(["validate", str(p), "--db", str(retail_db), "--format", "json"])
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "not a contract file" in err and "Traceback" not in err
 
 
 def test_missing_table_reports_failure(tmp_path, retail_db, capsys):
